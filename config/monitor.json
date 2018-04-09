@@ -1,0 +1,10 @@
+[
+  {
+    "logDir": "./data/log",
+    "bakLogDir": "./data/bak",
+    "batchLineNum": 10,
+    "batchFileNum": 10,
+    "bakSize": 1,
+    "bakSizeUnit": "MB"
+  }
+]
