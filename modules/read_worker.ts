@@ -27,6 +27,7 @@ export class ReadWorker extends EventEmitter {
     private _uhdb;
     private _fileWorker: FileWorker;
     private _uhdbFinished: boolean;
+    private _isIdle: boolean = true;
     /**
      * 一个文件读取完成
      */
@@ -53,14 +54,24 @@ export class ReadWorker extends EventEmitter {
 
         this._fileWorker.on(FileWorkerEvent.FILE_ALL_FINISH, () => {
             console.log("触发NORMAL_FINISH事件");
+            this._isIdle = true;
             this.emit(ReadWorkerEvent.NORMAL_ALL_FINISH);
             // 再次启动监控
             this._monitorOnceLogDir();
         });
     }
 
+    /**
+     * 是否在空闲状态
+     * @returns {boolean}
+     */
+    public isIdle():boolean {
+        return this._isIdle;
+    }
+
     public onStart() {
         console.log("启动读取日志程序");
+        this._isIdle = false;
         this._readUhdb();
     }
 

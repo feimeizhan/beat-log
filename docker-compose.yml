@@ -1,0 +1,17 @@
+version: '3'
+services:
+  program:
+    build:
+      context: ./
+      dockerfile: docker/node/Dockerfile
+    image: beat-log:reply2future
+    container_name: beat-log-ctn
+    env_file:
+      - config/docker.env
+    volumes:
+      - "./data:/data"
+    logging:
+      driver: "json-file"
+        options:
+          max-size: "100m"
+          max-file: "10"

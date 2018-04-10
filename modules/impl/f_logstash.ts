@@ -1,13 +1,11 @@
 import * as log4js from "log4js";
 
-const logstashConfig = require("../../config/logstash.json");
-
 log4js.configure({
     appenders: {
         logstash: {
             type: "@log4js-node/logstashudp",
-            host: logstashConfig.localhost || "localhost",
-            port: logstashConfig.port || 2334
+            host: process.env.LOG_HOST || "localhost",
+            port: process.env.LOG_PORT || 2334
         }
     },
     categories: {

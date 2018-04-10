@@ -7,20 +7,21 @@
     "start": "node program.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "license": "ISC",
+  "license": "MIT",
   "dependencies": {
     "@log4js-node/logstashudp": "^1.0.0",
     "errorhandler": "^1.5.0",
     "event-stream": "^3.3.4",
     "level": "^2.0.0",
     "log4js": "^2.5.3",
-    "moment": "^2.19.1"
+    "mkdirp": "^0.5.1"
   },
   "devDependencies": {
     "@types/errorhandler": "0.0.31",
     "@types/event-stream": "^3.3.33",
     "@types/leveldown": "^1.7.0",
     "@types/levelup": "^0.0.30",
+    "@types/mkdirp": "^0.5.2",
     "typescript": "^2.5.2"
   }
 }

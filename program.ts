@@ -9,6 +9,7 @@ import {ReadWorker, ReadWorkerEvent} from "./modules/read_worker";
 import {WriteWorker, WriteWorkerEvent} from "./modules/write_worker";
 import {FileWorker, FileWorkerEvent} from "./modules/file_worker";
 import * as path from "path";
+import * as mkdirp from "mkdirp";
 
 let monitorConfig = require("./config/monitor.json");
 let fileWorker: FileWorker;
@@ -17,11 +18,11 @@ let writeWorker: WriteWorker;
 
 for (let item of monitorConfig) {
     if (!fs.existsSync(item.logDir)) {
-        fs.mkdirSync(item.logDir);
+        mkdirp.sync(item.logDir);
     }
 
     if (!fs.existsSync(item.bakLogDir)) {
-        fs.mkdirSync(item.bakLogDir);
+        mkdirp.sync(item.bakLogDir);
     }
 
     fileWorker = new FileWorker(path.resolve(item.logDir), item.bakSize, item.bakSizeUnit, path.resolve(item.bakLogDir));
@@ -60,10 +61,35 @@ process.on("uncaughtException", err => {
     console.error(err);
 });
 
+/**
+ * 退出状态码
+ */
+enum EXIT_STATUS_CODE {
+    /**
+     * 空闲状态
+     */
+    IDLE = 100,
+
+    /**
+     * 下一个文件准备就绪状态
+      * @type {number}
+     */
+    FILE_READY = 200,
+    /**
+     * 关闭超时
+     * @type {number}
+     */
+    TIMEOUT = 300
+}
+
 // 优雅关闭程序
 process.on("SIGINT", () => {
+    if (readWorker.isIdle()) {
+        process.exit(EXIT_STATUS_CODE.IDLE);
+    }
+
     fileWorker.on(FileWorkerEvent.FILE_READY, () => {
-        process.exit();
+        process.exit(EXIT_STATUS_CODE.FILE_READY);
     });
 
     console.log("正在关闭程序...");
@@ -72,6 +98,6 @@ process.on("SIGINT", () => {
     setTimeout((e) => {
         console.log("强制关闭程序...", e);
 
-        process.exit(-1)
+        process.exit(EXIT_STATUS_CODE.TIMEOUT)
     }, 10000);
 });
