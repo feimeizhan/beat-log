@@ -3,7 +3,6 @@ import * as path from "path";
 import * as fs from "fs";
 import {DBHelper} from "../db_helper";
 import * as es from "event-stream";
-import {MapStream} from "event-stream";
 import {FileWorker, FileWorkerEvent} from "./file_worker";
 
 export enum ReadWorkerEvent {
@@ -28,7 +27,10 @@ export class ReadWorker extends EventEmitter {
     private _uhdb;
     private _fileWorker: FileWorker;
     private _uhdbFinished: boolean;
-    private _batchFileFinished: boolean;
+    /**
+     * 一个文件读取完成
+     */
+    private _oneFileFinished: boolean;
 
     constructor(logDir: string, fileWorker: FileWorker, batchLineNum: number = 10) {
         super();
@@ -43,16 +45,15 @@ export class ReadWorker extends EventEmitter {
 
         this._uhdb = DBHelper.getUnHandleDB();
         this._uhdbFinished = false;
-        this._batchFileFinished = false;
+        this._oneFileFinished = false;
 
-        this._fileWorker.on(FileWorkerEvent.FILE_ENOUGH, (readFileName, ms) => {
-            this._readLogs(ms);
+        this._fileWorker.on(FileWorkerEvent.FILE_READY, readFilePath => {
+            this._readLogs(fs.createReadStream(readFilePath));
         });
 
         this._fileWorker.on(FileWorkerEvent.FILE_ALL_FINISH, () => {
             console.log("触发NORMAL_FINISH事件");
             this.emit(ReadWorkerEvent.NORMAL_ALL_FINISH);
-
             // 再次启动监控
             this._monitorOnceLogDir();
         });
@@ -129,11 +130,16 @@ export class ReadWorker extends EventEmitter {
     }
 
 
-    private _readLogs(ms: MapStream) {
+    /**
+     * 批量读取日志文件行
+     * @param {"fs".ReadStream} ms
+     * @private
+     */
+    private _readLogs(ms: fs.ReadStream) {
 
         let lineArray: Array<string> = [];
 
-        this._batchFileFinished = false;
+        this._oneFileFinished = false;
 
         this._lineGate = es.pause();
 
@@ -157,12 +163,12 @@ export class ReadWorker extends EventEmitter {
                 }
             }))
             .pipe(es.wait(() => {
-                this._batchFileFinished = true;
+                this._oneFileFinished = true;
 
                 if (lineArray && lineArray.length > 0) {
                     this.emit(ReadWorkerEvent.NORMAL_ENOUGH, lineArray);
                 } else {
-                    this._fileWorker.onReadBatchFile();
+                    this._fileWorker.onReadNextFile();
                 }
             }));
     }
@@ -173,8 +179,8 @@ export class ReadWorker extends EventEmitter {
             return;
         }
 
-        if (this._batchFileFinished) {
-            this._fileWorker.onReadBatchFile();
+        if (this._oneFileFinished) {
+            this._fileWorker.onReadNextFile();
         } else {
             this._lineGate.resume();
         }

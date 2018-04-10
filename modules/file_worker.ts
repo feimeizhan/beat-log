@@ -1,5 +1,3 @@
-import * as es from "event-stream";
-import {MapStream} from "event-stream";
 import {EventEmitter} from "events";
 import * as path from "path";
 import * as fs from "fs";
@@ -7,7 +5,7 @@ import {DBExitCode, DBHelper} from "../db_helper";
 
 export enum FileWorkerEvent {
     FILE_ALL_FINISH = "file_all_finish",    // 文件全部去取完毕
-    FILE_ENOUGH = "file_enough"             // 一次批量文件读取完毕
+    FILE_READY = "file_ready"             // 一个文件读取准备就绪
 }
 
 export enum FileReadOrder {
@@ -28,21 +26,30 @@ export enum FileReadOrder {
 export class FileWorker extends EventEmitter {
 
     private _fileNameList: Array<string>;
-    private _tmpReadFileList: Array<string>;
+    /**
+     * 当前已读文件个数
+     */
+    private _currReadFileCount: number;
+    /**
+     * 当前读取文件名称
+     */
+    private _currReadFileName: string;
+    /**
+     * 从onStart()到FILE_ALL_FINISH事件触发
+     * 读取所有文件耗时
+     */
+    private _readExecTimestamp: number;
     private _rdb;
     private _logDir: string;
-    private _batchFileNum: number;
 
     private _bakSize: number;
     private _bakSizeUnit: string;
     private _bakLogDir: string;
 
-    constructor(logDir: string, batchFileNum: number = 100,
-                bakSize: number = 100, bakSizeUnit: string = "MB", bakLogDir: string) {
+    constructor(logDir: string, bakSize: number = 100, bakSizeUnit: string = "MB", bakLogDir: string) {
         super();
 
         this._logDir = logDir;
-        this._batchFileNum = batchFileNum;
         this._rdb = DBHelper.getReadFileDB();
         this._fileNameList = [];
         this._bakSize = bakSize;
@@ -51,6 +58,10 @@ export class FileWorker extends EventEmitter {
     }
 
     public onStart(order: FileReadOrder = FileReadOrder.M_TIME_ASC) {
+
+        // 统计数据初始化
+        this._readExecTimestamp = Date.now();
+        this._currReadFileCount = 0;
 
         if (this._fileNameList == null) {
             this._fileNameList = [];
@@ -71,10 +82,13 @@ export class FileWorker extends EventEmitter {
                 }
             });
 
+
+            this._fileNameList = this._fileNameList.filter(this._filterLogFileName, this._logDir);
+
             // 文件排序
             this._fileNameList = this._sortFile(this._logDir, this._fileNameList, order);
 
-            this._readBatchFile();
+            this._readFile();
 
         }).on("error", err => {
             console.error(`读取rdb数据库出错:${err}`);
@@ -130,32 +144,24 @@ export class FileWorker extends EventEmitter {
         });
     }
 
-    public onReadBatchFile() {
-
-        if (this._tmpReadFileList == null || this._tmpReadFileList.length == 0) {
-            this._readBatchFile();
-        } else {
-            let opts = [];
-
-            this._tmpReadFileList.forEach(value => {
-                opts.push({type: "put", key: value, value: new Date()});
-            });
-
-            this._rdb.batch(opts).then(() => {
-                console.log(`已读日志文件${this._tmpReadFileList.length}个入库成功`);
-                this._readBatchFile();
-            }).catch(err => {
-                if (err) {
-                    console.error(`已读日志文件名入库失败:${err}`);
-                    // 避免疯狂重读
-                    process.exit(DBExitCode.RDB_INNSERT_ERR);
-                }
-            });
-        }
-
+    /**
+     * 读取下一个文件
+     */
+    public onReadNextFile() {
+        this._rdb.put(this._currReadFileName, Date.now()).then(() => {
+            console.log(`已读日志文件${this._currReadFileName}入库成功`);
+            this._currReadFileCount++;
+            this._readFile();
+        }).catch(err => {
+            if (err) {
+                console.error(`已读日志文件名入库失败:${err}`);
+                // 避免疯狂重读
+                process.exit(DBExitCode.RDB_INNSERT_ERR);
+            }
+        });
     }
 
-    private _readBatchFile() {
+    private _readFile() {
         if (this._fileNameList == null || this._fileNameList.length === 0) {
             console.log("触发FILE_ALL_FINISH事件");
 
@@ -173,17 +179,13 @@ export class FileWorker extends EventEmitter {
                 console.log("不需要备份日志文件");
             }
 
-            this.emit(FileWorkerEvent.FILE_ALL_FINISH);
+            this.emit(FileWorkerEvent.FILE_ALL_FINISH, this._currReadFileCount, Date.now() - this._readExecTimestamp);
         } else {
             console.log("触发FILE_ENOUGH事件");
-            this._tmpReadFileList = this._fileNameList.splice(0, this._batchFileNum);
 
-            this._tmpReadFileList = this._tmpReadFileList.filter(this._filterFileName, this._logDir);
+            this._currReadFileName = this._fileNameList.shift();
 
-            // 避免被修改
-            let tmpReadFileList: Array<string> = JSON.parse(JSON.stringify(this._tmpReadFileList));
-
-            this.emit(FileWorkerEvent.FILE_ENOUGH, tmpReadFileList, this._mergeStream(this._tmpReadFileList));
+            this.emit(FileWorkerEvent.FILE_READY, path.join(this._logDir, this._currReadFileName));
         }
     }
 
@@ -267,7 +269,13 @@ export class FileWorker extends EventEmitter {
         return bakSize <= sumSize;
     }
 
-    private _filterFileName(fileName: string) {
+    /**
+     * 过滤不是日志的文件名
+     * @param {string} fileName
+     * @returns {boolean}
+     * @private
+     */
+    private _filterLogFileName(fileName: string) {
         // 过滤掉不是日志文件
         if (path.extname(fileName) !== ".log") {
             console.log(`${fileName}文件不是日志文件不做处理`);
@@ -281,32 +289,6 @@ export class FileWorker extends EventEmitter {
         }
 
         return true;
-    }
-
-    private _mergeStream(fileNameList): MapStream {
-
-        if (fileNameList == null || fileNameList.length === 0) {
-            console.log("没有需要合并的文件流");
-            return es.merge();
-        }
-
-        return es.merge(fileNameList.map(fileName => {
-            // 过滤掉不是日志文件
-            if (path.extname(fileName) !== ".log") {
-                console.log(`${fileName}文件不是日志文件不做处理`);
-                return;
-            }
-
-            let p = path.join(this._logDir, fileName);
-            if (!fs.existsSync(p)) {
-                console.log(`不存在文件:${p}`);
-                return;
-            }
-
-            return fs.createReadStream(p);
-        }).filter(stream => {
-            return stream != null;
-        }));
     }
 
 }
