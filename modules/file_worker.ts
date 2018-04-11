@@ -23,6 +23,32 @@ export enum FileReadOrder {
     M_TIME_DESC
 }
 
+/**
+ * 配置类
+ */
+export interface FileWorkerOptions {
+    /**
+     * 日志目录
+     */
+    logDir: string;
+    /**
+     * 备份日志目录
+     */
+    bakLogDir: string;
+    /**
+     * 备份临界点
+     */
+    bakSize?: number;
+    /**
+     * 备份临界点单位,比如:"MB"
+     */
+    bakSizeUnit?: string;
+    /**
+     * rdb对象
+     */
+    rdb: any;
+}
+
 export class FileWorker extends EventEmitter {
 
     private _fileNameList: Array<string>;
@@ -46,15 +72,15 @@ export class FileWorker extends EventEmitter {
     private _bakSizeUnit: string;
     private _bakLogDir: string;
 
-    constructor(logDir: string, bakSize: number = 100, bakSizeUnit: string = "MB", bakLogDir: string) {
+    constructor(options: FileWorkerOptions) {
         super();
 
-        this._logDir = logDir;
-        this._rdb = DBHelper.getReadFileDB();
+        this._logDir = options.logDir;
+        this._rdb = options.rdb;
         this._fileNameList = [];
-        this._bakSize = bakSize;
-        this._bakSizeUnit = bakSizeUnit;
-        this._bakLogDir = bakLogDir;
+        this._bakSize = options.bakSize || 100;
+        this._bakSizeUnit = options.bakSizeUnit || "MB";
+        this._bakLogDir = options.bakLogDir;
     }
 
     public onStart(order: FileReadOrder = FileReadOrder.M_TIME_ASC) {

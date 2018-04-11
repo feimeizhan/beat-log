@@ -1,5 +1,5 @@
 import * as fs from "fs";
-import * as path from "path";
+import * as mkdirp from "mkdirp";
 
 const level = require("level");
 
@@ -17,65 +17,63 @@ export enum DBExitCode {
     UHDB_INNSERT_ERR = -200
 }
 
+/**
+ * 数据库类型
+ */
+export enum DB_TYPE {
+    RDB_TYPE = 1,
+    UHDB_TYPE = 2
+}
+
 
 export class DBHelper {
 
-    /**
-     * 已读日志文件DB路径
-     * key:日志文件名称
-     * value:日志绝对路径
-     * @type {string}
-     */
-    static readFileDBDir: string = path.join(__dirname, "/data/rdb");
-
-    /**
-     * 无法处理日志文件的行内容DB路径
-     * key:日志原始行内容
-     * value:文件名称
-     * @type {string}
-     */
-    static unHandleDBDir: string = path.join(__dirname, "/data/uhdb");
-
-    private static _uhdb;
-    private static _rdb;
+    private static _uhdb = {};
+    private static _rdb = {};
 
     /**
      * 简单单例模式
-     * @param {string} dir
+     * @param {DB_TYPE} dbType
+     * @param {string} dir 存储数据目录
      * @return {any}
      */
-    static getDB(dir: string) {
+    static getDB(dbType:DB_TYPE, dir: string) {
         if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir)
+            mkdirp.sync(dir);
         }
 
-        if (dir === DBHelper.readFileDBDir) {
-            if (this._rdb == null) {
-                this._rdb = level(dir, {keyEncoding: "utf8mb4", valueEncoding: "utf8mb4"});
-            }
-            return this._rdb;
-        }
+        switch (dbType) {
+            case DB_TYPE.RDB_TYPE:
+                if (this._rdb[dir] == null) {
+                    this._rdb[dir] = level(dir, {keyEncoding: "utf8mb4", valueEncoding: "utf8mb4"});
+                }
 
-        if (dir === DBHelper.unHandleDBDir) {
-            if (this._uhdb == null) {
-                this._uhdb = level(dir, {keyEncoding: "utf8mb4", valueEncoding: "utf8mb4"});
-            }
-            return this._uhdb;
+                return this._rdb[dir];
+            case DB_TYPE.UHDB_TYPE:
+                if (this._uhdb[dir] == null) {
+                    this._uhdb[dir] = level(dir, {keyEncoding: "utf8mb4", valueEncoding: "utf8mb4"});
+                }
+                return this._uhdb[dir];
+            default:
+                throw new RangeError(`超出DB_TYPE范围:${dbType}`);
         }
-
-        return level(dir, {keyEncoding: "utf8mb4", valueEncoding: "utf8mb4"});
     }
 
     /**
-     *
+     * 获取未处理数据
      * @return {levelup.LevelUp}
      */
-    static getUnHandleDB() {
-        return DBHelper.getDB(DBHelper.unHandleDBDir);
+    static getUnHandleDB(dir: string) {
+        return DBHelper.getDB(DB_TYPE.UHDB_TYPE, dir);
     }
 
-    static getReadFileDB() {
-        return DBHelper.getDB(DBHelper.readFileDBDir);
+    /**
+     * 获取未读文件
+     * @param {string} dir
+     * @returns {any | any}
+     */
+    static getReadFileDB(dir: string) {
+        return DBHelper.getDB(DB_TYPE.RDB_TYPE, dir);
     }
 
 }

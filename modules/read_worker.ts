@@ -13,6 +13,28 @@ export enum ReadWorkerEvent {
 }
 
 /**
+ * 配置类
+ */
+export interface ReadWorkerOptions {
+    /**
+     * 日志目录
+     */
+    logDir: string;
+    /**
+     * 文件工作对象
+     */
+    fileWorker: FileWorker;
+    /**
+     * 一次读取日志行数
+     */
+    batchLineNum?: number;
+    /**
+     * uhdb对象
+     */
+    uhdb: any;
+}
+
+/**
  * 读取数据工作类
  *
  * enough: 读取到足够的数据事件
@@ -33,18 +55,18 @@ export class ReadWorker extends EventEmitter {
      */
     private _oneFileFinished: boolean;
 
-    constructor(logDir: string, fileWorker: FileWorker, batchLineNum: number = 10) {
+    constructor(options: ReadWorkerOptions) {
         super();
 
-        if (!path.isAbsolute(logDir)) {
-            throw new SyntaxError(`日志路径必须为绝对路径:${logDir}`);
+        if (!options.logDir || !path.isAbsolute(options.logDir)) {
+            throw new SyntaxError(`日志路径必须为绝对路径:${options.logDir}`);
         }
 
-        this._batchLineNum = batchLineNum;
-        this._logDir = logDir;
-        this._fileWorker = fileWorker;
+        this._batchLineNum = options.batchLineNum || 10;
+        this._logDir = options.logDir;
+        this._fileWorker = options.fileWorker;
 
-        this._uhdb = DBHelper.getUnHandleDB();
+        this._uhdb = options.uhdb;
         this._uhdbFinished = false;
         this._oneFileFinished = false;
 

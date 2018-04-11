@@ -10,6 +10,7 @@ import {WriteWorker, WriteWorkerEvent} from "./modules/write_worker";
 import {FileWorker, FileWorkerEvent} from "./modules/file_worker";
 import * as path from "path";
 import * as mkdirp from "mkdirp";
+import {DBHelper} from "./db_helper";
 
 let monitorConfig = require("./config/monitor.json");
 let fileWorker: FileWorker;
@@ -25,9 +26,23 @@ for (let item of monitorConfig) {
         mkdirp.sync(item.bakLogDir);
     }
 
-    fileWorker = new FileWorker(path.resolve(item.logDir), item.bakSize, item.bakSizeUnit, path.resolve(item.bakLogDir));
-    readWorker = new ReadWorker(path.resolve(item.logDir), fileWorker, item.batchLineNum);
-    writeWorker = new WriteWorker(item.gameName, item.batchLineNum);
+    fileWorker = new FileWorker({
+        logDir: path.resolve(item.logDir),
+        bakSize: item.bakSize,
+        bakSizeUnit: item.bakSizeUnit,
+        bakLogDir: path.resolve(item.bakLogDir),
+        rdb: DBHelper.getReadFileDB(item.rdbDir)
+    });
+    readWorker = new ReadWorker({
+        logDir: path.resolve(item.logDir),
+        fileWorker: fileWorker,
+        batchLineNum: item.batchLineNum,
+        uhdb: DBHelper.getUnHandleDB(item.uhdbDir)
+    });
+    writeWorker = new WriteWorker({
+        gameName: item.gameName,
+        uhdb: DBHelper.getUnHandleDB(item.uhdbDir)
+    });
 
     readWorker.onStart();
 
@@ -56,10 +71,6 @@ for (let item of monitorConfig) {
         console.log(`耗时:${readFileTimeStamp}毫秒`);
     })
 }
-
-process.on("uncaughtException", err => {
-    console.error(err);
-});
 
 /**
  * 退出状态码

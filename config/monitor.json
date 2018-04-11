@@ -2,6 +2,8 @@
   {
     "logDir": "/data/log",
     "bakLogDir": "/data/bak",
+    "rdbDir": "/data/rdb",
+    "uhdbDir": "/data/uhdb",
     "batchLineNum": 10,
     "bakSize": 1,
     "bakSizeUnit": "MB"

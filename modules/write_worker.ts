@@ -3,11 +3,27 @@ import {DBExitCode, DBHelper} from "../db_helper";
 import * as path from "path";
 import * as fs from "fs";
 import * as es from "event-stream";
+import {levelupOptions} from "levelup";
 
 export enum WriteWorkerEvent {
     NORMAL_BATCH_FINISH = "batch_finish",       // 一次批量日志读取完毕
     CHANGE_MODULE = "change_module",            // 模块有修改事件
     UH_BATCH_FINISH = "uh_finish"               // 没有处理的日志全部处理完毕事件
+}
+
+export interface WriteWorkerOptions {
+    /**
+     * 游戏名称
+     */
+    gameName: string;
+    /**
+     * 处理模型文件目录
+     */
+    moduleDir?: string;
+    /**
+     * uhdb对象
+     */
+    uhdb:any;
 }
 
 
@@ -21,16 +37,14 @@ export class WriteWorker extends EventEmitter {
 
     private _modulePrefix: string = "f_logstash";
 
-    private _batchLineNum: number;
     private _uhdb;
 
-    constructor(gameName: string, batchLineNum: number, moduleDir: string = "impl") {
+    constructor(options: WriteWorkerOptions) {
         super();
 
-        this._batchLineNum = batchLineNum;
-        this._moduleDir = path.join(__dirname, moduleDir);
-        this._gameName = gameName;
-        this._uhdb = DBHelper.getUnHandleDB();
+        this._moduleDir = path.join(__dirname, options.moduleDir || "impl");
+        this._gameName = options.gameName;
+        this._uhdb = options.uhdb;
 
         this._loadAllModules();
     }
