@@ -1,19 +1,12 @@
-import * as log4js from "log4js";
+import * as axios from "axios";
+import * as os from "os";
 
-log4js.configure({
-    appenders: {
-        logstash: {
-            type: "@log4js-node/logstashudp",
-            host: process.env.LOG_HOST || "localhost",
-            port: process.env.LOG_PORT || 2334
-        }
-    },
-    categories: {
-        default: { appenders: ["logstash"], level: "info" }
-    }
+const sender = axios.default.create({
+    baseURL: `http://${process.env.LOG_HOST || "localhost"}:${process.env.LOG_PORT || 2334}`,
+    timeout: +process.env.LOG_TIMEOUT || 5000,
+    headers: {"Content-Type": "application/json"}, // 使用_bulk接口需要使用application/x-ndjson
+    withCredentials: true
 });
-
-const logger = log4js.getLogger();
 
 /**
  * 版本0,记录编号1
@@ -23,6 +16,11 @@ const logger = log4js.getLogger();
  */
 export default async function f_logstash(line: string) {
     // 发送数据到logstash
-    logger.info(line);
+    await sender.post('',{
+        '@version': 1,
+        '@timestamp': (new Date().toISOString()),
+        'host': os.hostname(),
+        'message': line
+    });
 }
 

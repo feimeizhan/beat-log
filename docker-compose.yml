@@ -8,10 +8,11 @@ services:
     container_name: beat-log-ctn
     env_file:
       - config/docker.env
+    network_mode: "host"
     volumes:
-      - "./data:/data"
+      - "/alidata1/gs:/data"
     logging:
       driver: "json-file"
-        options:
-          max-size: "100m"
-          max-file: "10"
+      options:
+        max-size: "100m"
+        max-file: "10"
