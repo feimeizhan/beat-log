@@ -47,6 +47,14 @@ export interface FileWorkerOptions {
      * rdb对象
      */
     rdb: any;
+
+    /**
+     * 读取文件的顺序
+     * 创建时间或修改时间
+     */
+    fileReadOrder?:FileReadOrder;
+
+    monitorInterval?: number;
 }
 
 export class FileWorker extends EventEmitter {
@@ -71,6 +79,9 @@ export class FileWorker extends EventEmitter {
     private _bakSize: number;
     private _bakSizeUnit: string;
     private _bakLogDir: string;
+    private _isIdle: boolean = true;
+    private _fileReadOrder: FileReadOrder;
+    private _monitorInterval: number;
 
     constructor(options: FileWorkerOptions) {
         super();
@@ -81,9 +92,27 @@ export class FileWorker extends EventEmitter {
         this._bakSize = options.bakSize || 100;
         this._bakSizeUnit = options.bakSizeUnit || "MB";
         this._bakLogDir = options.bakLogDir;
+        this._fileReadOrder = options.fileReadOrder || FileReadOrder.M_TIME_ASC;
+        /**
+         * 默认1800秒
+         * @type {(number | undefined) & number}
+         * @private
+         */
+        this._monitorInterval = options.monitorInterval || 1800;
     }
 
-    public onStart(order: FileReadOrder = FileReadOrder.M_TIME_ASC) {
+    public isIdle():boolean {
+        return this._isIdle;
+    }
+
+    public onStart() {
+
+        if (!this.isIdle()) {
+            console.log("已启动工作,忽略当前请求");
+            return;
+        }
+
+        this._isIdle = false;
 
         // 统计数据初始化
         this._readExecTimestamp = Date.now();
@@ -112,7 +141,7 @@ export class FileWorker extends EventEmitter {
             this._fileNameList = this._fileNameList.filter(this._filterLogFileName, this._logDir);
 
             // 文件排序
-            this._fileNameList = this._sortFile(this._logDir, this._fileNameList, order);
+            this._fileNameList = this._sortFile(this._logDir, this._fileNameList, this._fileReadOrder);
 
             this._readFile();
 
@@ -187,6 +216,37 @@ export class FileWorker extends EventEmitter {
         });
     }
 
+    /**
+     * 监控gsLog日志目录
+     * 只触发一次，写入所有数据后重新监控
+     * 避免重复触发
+     */
+    private _monitorOnceLogDir() {
+        console.log("启动gsLog日志监控");
+
+        if (!this.isIdle()) {
+            return;
+        }
+
+        setTimeout(() => {
+            process.nextTick(() => {
+                this.onStart();
+            });
+        }, this._monitorInterval * 1000);
+
+        let logWatcher = fs.watch(this._logDir, (evt, fileName) => {
+            if (evt === "change") {
+
+                logWatcher.close();
+
+                // 避免立马读取导致文件打开出错
+                process.nextTick(() => {
+                    this.onStart();
+                });
+            }
+        });
+    }
+
     private _readFile() {
         if (this._fileNameList == null || this._fileNameList.length === 0) {
             console.log("触发FILE_ALL_FINISH事件");
@@ -206,6 +266,10 @@ export class FileWorker extends EventEmitter {
             }
 
             this.emit(FileWorkerEvent.FILE_ALL_FINISH, this._currReadFileCount, Date.now() - this._readExecTimestamp);
+
+            this._isIdle = true;
+
+            this._monitorOnceLogDir();
         } else {
             console.log("触发FILE_ENOUGH事件");
 

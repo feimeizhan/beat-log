@@ -78,8 +78,6 @@ export class ReadWorker extends EventEmitter {
             console.log("触发NORMAL_FINISH事件");
             this._isIdle = true;
             this.emit(ReadWorkerEvent.NORMAL_ALL_FINISH);
-            // 再次启动监控
-            this._monitorOnceLogDir();
         });
     }
 
@@ -141,27 +139,6 @@ export class ReadWorker extends EventEmitter {
         console.log("触发UHDB_FINISH事件");
         this._fileWorker.onStart();
     }
-
-    /**
-     * 监控gsLog日志目录
-     * 只触发一次，写入所有数据后重新监控
-     * 避免重复触发
-     */
-    private _monitorOnceLogDir() {
-        console.log("启动gsLog日志监控");
-        let logWatcher = fs.watch(this._logDir, (evt, fileName) => {
-            if (evt === "change") {
-
-                logWatcher.close();
-
-                // 避免立马读取导致文件打开出错
-                process.nextTick(() => {
-                    this._fileWorker.onStart();
-                });
-            }
-        });
-    }
-
 
     /**
      * 批量读取日志文件行

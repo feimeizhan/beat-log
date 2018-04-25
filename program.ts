@@ -31,7 +31,8 @@ for (let item of monitorConfig) {
         bakSize: item.bakSize,
         bakSizeUnit: item.bakSizeUnit,
         bakLogDir: path.resolve(item.bakLogDir),
-        rdb: DBHelper.getReadFileDB(item.rdbDir)
+        rdb: DBHelper.getReadFileDB(item.rdbDir),
+        monitorInterval: item.monitorInterval
     });
     readWorker = new ReadWorker({
         logDir: path.resolve(item.logDir),

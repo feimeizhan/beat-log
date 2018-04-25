@@ -6,6 +6,7 @@
     "uhdbDir": "/data/uhdb",
     "batchLineNum": 10,
     "bakSize": 1,
-    "bakSizeUnit": "MB"
+    "bakSizeUnit": "MB",
+    "monitorInterval": 1800
   }
 ]
