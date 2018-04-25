@@ -19,4 +19,9 @@ files.filter(function (file) {
 console.log("done");
 
 // Usage
-// node rename.js path/to/directory '\s' '-'
+// node batch_rename.js path/to/directory '\s' '-'
+
+// 配合docker使用
+// 1. docker run --name rename-ctn -v "/gs:/data" -v "/var/www/beat-log:/www" -it node:8-alpine sh
+// 2. cd /www
+// 3. node batch_rename.js /data/gs-log-bak/ '\.15[0-9]{11}\.bak' ''
