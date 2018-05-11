@@ -1,6 +1,6 @@
 # 日志发送工具
 能够配置一次性读取日志文件日志行数,然后对每一行日志进行处理,并且备份log文件.另外,单文件读取方便优雅关闭程序.
-项目目的是实现Elastic里面的[filebeat](https://www.elastic.co/products/beats/filebeat)程序不具备的文件迁移和备份功能,[详情](https://github.com/elastic/beats/issues/714).
+项目目的是实现Elastic里面的[filebeat](https://www.elastic.co/products/beats/filebeat)程序不具备的文件迁移和备份功能,[详情](https://github.com/elastic/beats/issues/714).已在线传送千万数据,平稳运行.
 ## 版本需求
 - node>=6.0
 - npm>=3.0
